@@ -36,7 +36,7 @@ namespace DesignerReorder
         private static readonly Regex ToolStripItemRegex = new(@"^\s*this\.(?<parent>\w+)\.(?:Items|DropDownItems)\.AddRange\s*\(\s*new\s+(?:System\.Windows\.Forms\.)?ToolStripItem\[\]\s*\{", RegexOptions.Compiled);
         private static readonly Regex ChildRegex = new(@"^\s*this\.(?<child>\w+)", RegexOptions.Compiled);
         // Regex to find control's properties
-        private static readonly Regex CreationRegex = new(@"^\s*(?:this\.)?(?<name>\w*)\s*=\s*new\s+[\w\.<>,\s]+\(", RegexOptions.Compiled);
+        private static readonly Regex CreationRegex = new(@"^\s*(?:this\.)?(?<name>\w+)\s*=\s*[^\r\n;]*?\bnew\s+[\w\.<>,\s]+\(", RegexOptions.Compiled);
         private static readonly Regex BeginInitRegex = new(@"this\.(?<name>\w+)(?=[^;]*BeginInit\s*\(\s*\))", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly Regex EndInitRegex = new(@"this\.(?<name>\w+)(?=[^;]*EndInit\s*\(\s*\))", RegexOptions.Compiled | RegexOptions.IgnoreCase);
         private static readonly Regex SuspendLayoutRegex = new(@"^\s*(?:this\.(?<name>\w+)|(?<name>this|\w+))\.SuspendLayout\s*\(\s*\)\s*;", RegexOptions.Compiled);
@@ -273,7 +273,7 @@ namespace DesignerReorder
                 }
             }
 
-            SortAllControlInfo(controlTree, true);
+            SortAllControlInfo(controlTree);
 
             List<string> Output = new List<string>();
             // Recreate designer file with the new order
@@ -345,36 +345,8 @@ namespace DesignerReorder
                     controls.Add(controlInfo);
                 }
             }
-            //controls.Sort(new ControlInfoComparer(YTolerance));
             return controls;
         }
-
-        //internal sealed class ControlInfoComparer : IComparer<ControlInfo>
-        //{
-        //    private readonly int _yTolerance;
-
-        //    public ControlInfoComparer(int yTolerance = 10) => _yTolerance = Math.Max(0, yTolerance);
-
-        //    public int Compare(ControlInfo? x, ControlInfo? y)
-        //    {
-        //        if (ReferenceEquals(x, y)) return 0;
-        //        if (x is null) return -1;
-        //        if (y is null) return 1;
-
-        //        // Compare by Y with tolerance
-        //        int dy = x.LocationY - y.LocationY;
-        //        if (Math.Abs(dy) > _yTolerance)
-        //            return dy; // positive = x below y => greater
-
-        //        // Y considered equal within tolerance -> compare by X ascending
-        //        int dx = x.LocationX - y.LocationX;
-        //        if (dx != 0)
-        //            return dx;
-
-        //        // Final stable tiebreaker: control name
-        //        return string.CompareOrdinal(x.ControlName, y.ControlName);
-        //    }
-        //}
 
         private static ControlInfo GetControlInfo(List<ControlInfo> controls, string controlName)
         {
@@ -397,23 +369,21 @@ namespace DesignerReorder
             return null;
         }
 
-        private static void SortAllControlInfo(List<ControlInfo> controls, bool bStraightOrder)
+        private static void SortAllControlInfo(List<ControlInfo> controls)
         {
             // Sort the controls by LocationY and LocationX with a tolerance for Y
             controls.Sort((a, b) =>
             {
                 if (Math.Abs(a.LocationY - b.LocationY) <= YTolerance)
                 {
-                    return a.LocationX.CompareTo(b.LocationX);
+                    return b.LocationX.CompareTo(a.LocationX);
                 }
                 return a.LocationY.CompareTo(b.LocationY);
             });
-            if (!bStraightOrder)
-                controls.Reverse();
             foreach (var control in controls)
             {
-                if (control.Children.Count > 1)
-                    SortAllControlInfo(control.Children, control.ControlName == "this" || control.Table);
+                if (control.Children.Count > 0)
+                    SortAllControlInfo(control.Children);
             }
         }
         private static List<string> GetCreationStrings(ControlInfo control)
