@@ -1,0 +1,20 @@
+# Gitignore file for VC++ projects.
+# To be added in all VC++ repositories.
+# Author: Matteo Mangano
+
+# Ignore all files inside accessory folders/subfolders.
+bin/
+obj/
+packages/
+.vs/
+
+# Ignore all temporary files
+*.scc
+*.user
+*.exe
+*.vspscc
+*.vssscc
+*.tgz
+
+# exceptions which are maintained by hand
+launchSettings.json
