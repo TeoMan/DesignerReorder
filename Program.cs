@@ -149,6 +149,7 @@ internal static class Program
         List<ControlInfo> controls = Program.BuildControlTree(lines, controlsDeclarations, controlsParents);
         ControlInfo LastControlInfo = null;
         bool bodyStarted = false;
+        bool bBodyEnded = false;
         for (int i = 0; i < lines.Count; i++)
         {
             m = Program.CreationRegex.Match(lines[i]);
@@ -184,7 +185,12 @@ internal static class Program
             m = Program.PerformLayoutRegex.Match(lines[i]);
             if (m.Success)
                 Program.GetControlInfo(controls, m.Groups["name"].Value).PerformLayout = lines[i];
-            if (bodyStarted)
+            // Properties end at the first End/Resume/PerformLayout line or at the end of InitializeComponent,
+            // otherwise the last block (usually the form itself) swallows the rest of the file
+            if (bodyStarted && (Program.EndInitRegex.IsMatch(lines[i]) || Program.ResumeLayoutRegex.IsMatch(lines[i]) ||
+                                Program.PerformLayoutRegex.IsMatch(lines[i]) || lines[i].Trim() == "}"))
+                bBodyEnded = true;
+            if (bodyStarted && !bBodyEnded)
             {
                 m = Program.ControlCommentRegex.Match(lines[i]);
                 if (m.Success)
@@ -296,7 +302,21 @@ internal static class Program
 
     private static void SortAllControlInfo(List<ControlInfo> controls)
     {
-        controls.Sort((Comparison<ControlInfo>)((a, b) => Math.Abs(a.LocationY - b.LocationY) <= Program.YTolerance ? b.LocationX.CompareTo(a.LocationX) : a.LocationY.CompareTo(b.LocationY)));
+        // Group controls into rows: a row starts at its topmost control and includes all controls
+        // within YTolerance from it; each row is then ordered right to left, so that controls on the
+        // right are added first and drawn on top of the ones on their left
+        List<ControlInfo> aSortedByY = controls.OrderBy(c => c.LocationY).ToList();
+        controls.Clear();
+        int i = 0;
+        int n = aSortedByY.Count;
+        while (i < n)
+        {
+            long nRowY = aSortedByY[i].LocationY;
+            List<ControlInfo> aRow = new List<ControlInfo>();
+            while (i < n && aSortedByY[i].LocationY - nRowY <= Program.YTolerance)
+                aRow.Add(aSortedByY[i++]);
+            controls.AddRange(aRow.OrderByDescending(c => c.LocationX));
+        }
         foreach (ControlInfo control in controls)
         {
             if (control.Children.Count > 0)
